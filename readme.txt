@@ -1,3 +1,25 @@
+
+本プログラムは、Piro77/epgdump (https://github.com/Piro77/epgdump)のフォークで、
+その目的は raspirec Ver1.3.0(https://github.com/kaikoma-soft/raspirec)
+に必要な改造＋おまけを施したものです。
+
+変更点は次のものです。
+
+ * --tail オプション(入力ファイルの最後の部分だけ読む)の追加
+ * 32bit OS でも、ファイルサイズが 2Gbyte 以上にアクセス出来るように。
+ * コンパイル時の警告を無くす。
+
+インストール方法は次の通りです。
+
+  % mkdir /tmp/epgdump ; cd /tmp/epgdump
+  % git clone https://github.com/kaikoma-soft/epgdump.git .
+  % mkdir build ; cd build ; cmake .. ; make
+  % sudo make install
+  % rm -rf build
+
+以下はオリジナルの README
+------------------------------------------------------
+
 epgdump改良版
 
 https://github.com/Piro77/epgdump

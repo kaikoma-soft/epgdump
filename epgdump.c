@@ -19,6 +19,7 @@
 
 #include "xmldata.c"
 
+long long timeConv( char *);
 
 SVT_CONTROL	*svttop = NULL;
 #define		SECCOUNT	10
@@ -485,8 +486,8 @@ void dumpJSON(FILE *outfile)
 			}
 			fprintf(outfile,"],");
 
-			fprintf(outfile,"\"start\":%d000,",eitcur->start_time);
-			fprintf(outfile,"\"end\":%d000,",eitcur->start_time+eitcur->duration);
+			fprintf(outfile,"\"start\":%ld000,",eitcur->start_time);
+			fprintf(outfile,"\"end\":%ld000,",eitcur->start_time+eitcur->duration);
 			fprintf(outfile,"\"duration\":%d,",eitcur->duration);
 
 			eitextcanma="";
@@ -547,7 +548,7 @@ int main(int argc, char *argv[])
 	int   outclose = 0;
 	int	ret;
 	SECcache   secs[SECCOUNT];
-
+    long long  opt_tail = 0;
 
 	/* 興味のあるpidを指定 */
 	memset(secs, 0,  sizeof(SECcache) * SECCOUNT);
@@ -560,37 +561,81 @@ int main(int argc, char *argv[])
 	secs[6].pid = 0x13; /* RST */
 	secs[7].pid = 0x24; /* BIT */
 
+    int option_index = 0;
+    struct option long_options[] = {
+        {"tail",   required_argument, NULL, 't' },
+        {0,        0,                 0,    0   }
+    };
+    while ( (ret = getopt_long(argc, argv, "t:", long_options, &option_index)) != -1 ) {
+        switch (ret) {
+        case 't':
+          opt_tail = timeConv( optarg );
+          break;
+        }
+    }
+
+    int   argc2 = argc - optind ;
+#ifdef DEBUG
+    if (optind < argc) {
+        printf("non-option ARGV-elements(%d %d): ",optind, argc2  );
+        int tmp = optind ;
+        while (tmp < argc) {
+            printf("%s ", argv[tmp++]);
+        }
+        printf("\n");
+    }
+#endif
+    
     file = NULL;
     fileout= NULL;
-	if (argc > 2) {
-    if (argc == 3) {
-        file = argv[1];
-        fileout = argv[2];
-    }
-    else {
-        file = argv[2];
-        fileout = argv[3];
-   }
-		if(strcmp(file, "-")) {
-			infile = fopen(file, "r");
-			inclose = 1;
-		}
-	if(infile == NULL){
+	if ( argc2 > 2) {
+      if (argc == 3) {
+        file = argv[optind + 0 ];
+        fileout = argv[optind + 1 ];
+      }
+      else {
+        file = argv[optind + 1 ];
+        fileout = argv[optind + 2 ];
+      }
+      if(strcmp(file, "-")) {
+        infile = fopen(file, "r");
+        if(infile != NULL) {
+          if ( opt_tail > 0 ) {
+            long long size;
+            int  fd;
+            fd = fileno( infile );
+            size = lseek64(fd, 0, SEEK_END);
+#ifdef DEBUG
+            printf("file size:%lld\n", size);
+#endif
+            if ( size > opt_tail ) {
+              lseek64(fd, size - opt_tail , SEEK_SET);
+#ifdef DEBUG
+              printf("seek: %lld\n", size - opt_tail );
+#endif
+            } else {
+              lseek64(fd, 0, SEEK_SET);
+            }
+          }
+        }
+        inclose = 1;
+      }
+      if(infile == NULL){
 		fprintf(stderr, "Can't open file: %s\n", file);
 		return 1;
-	}
+      }
 	}
 
-	if(argc == 6 && ((strcmp(argv[1], "check") == 0)||(strcmp(argv[1],"wait"))==0)){
+	if(argc2 == 6 && ((strcmp(argv[optind], "check") == 0)||(strcmp(argv[optind],"wait"))==0)){
 		memset(&chk,0,sizeof(EITCHECK));
-		chk.svid = atoi(argv[3]);
-		chk.evid = atoi(argv[4]);
-		if (strcmp(argv[1],"check")==0) {
-			chk.starttime = str2timet(argv[5]);
+		chk.svid = atoi(argv[optind + 2]);
+		chk.evid = atoi(argv[optind + 3]);
+		if (strcmp(argv[optind],"check")==0) {
+			chk.starttime = str2timet(argv[optind + 4]);
 			chk.waitend = time(NULL) + 11;
 		}
 		else {
-			chk.waitend = time(NULL) + atoi(argv[5]);
+			chk.waitend = time(NULL) + atoi(argv[optind + 4]);
 		}
 		ret = CheckEIT(infile,secs, SECCOUNT,&chk);
 		if (inclose) fclose(infile);
@@ -598,21 +643,23 @@ int main(int argc, char *argv[])
 		return ret;
 	}
 
-	if(argc >= 3){
-		if(strcmp(fileout, "-")) {
-			outfile = fopen(fileout, "w+");
-			outclose = 1;
-		}
-	}else{
-		fprintf(stdout, "Usage : %s <tsFile> <outfile>\n", argv[0]);
-		fprintf(stdout, "Usage : %s csv  <tsFile> <outfile>\n", argv[0]);
-		fprintf(stdout, "Usage : %s json <tsFile> <outfile>\n", argv[0]);
-		fprintf(stdout, "Usage : %s check <device> <sid> <eventid> <eventtime>\n", argv[0]);
-		fprintf(stdout, "Usage : %s wait <device> <sid> <eventid> <maxwaitsec>\n", argv[0]);
+	if(argc2 >= 3){
+      if(strcmp(fileout, "-")) {
+        outfile = fopen(fileout, "w+");
+        outclose = 1;
+      }
+	} else {
+		fprintf(stdout, "Usage : %s [OPTION] <tsFile> <outfile>\n", argv[0]);
+		fprintf(stdout, "Usage : %s [OPTION] csv  <tsFile> <outfile>\n", argv[0]);
+		fprintf(stdout, "Usage : %s [OPTION] json <tsFile> <outfile>\n", argv[0]);
+		fprintf(stdout, "Usage : %s [OPTION] check <device> <sid> <eventid> <eventtime>\n", argv[0]);
+		fprintf(stdout, "Usage : %s [OPTION] wait <device> <sid> <eventid> <maxwaitsec>\n", argv[0]);
 		fprintf(stdout, "  csv        csv  output mode\n");
 		fprintf(stdout, "  json       json output mode\n");
 		fprintf(stdout, "  check      check event\n");
 		fprintf(stdout, "  wait       wait  event\n");
+		fprintf(stdout, "\n[OPTION]\n");
+        fprintf(stdout, "  -t, --tail=SIZE\n");
 		fprintf(stdout, "VERSION : %s\n",VERSION);
 		return 0;
 	}
@@ -621,11 +668,11 @@ int main(int argc, char *argv[])
 
 	ret = GetSDTEITInfo(infile, secs, SECCOUNT);
 
-	if(strcmp(argv[1], "csv") == 0){
+	if(strcmp(argv[optind], "csv") == 0){
 		dumpCSV(outfile);
-	}else if (strcmp(argv[1], "csvc") == 0){
+	}else if (strcmp(argv[optind], "csvc") == 0){
 		dumpChannel(outfile);
-	}else if (strcmp(argv[1], "json") == 0){
+	}else if (strcmp(argv[optind], "json") == 0){
 		dumpJSON(outfile);
 	}else{
 		dumpXML(outfile);

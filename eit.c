@@ -500,7 +500,7 @@ int dumpEIT2(unsigned char *ptr, SVT_CONTROL *svttop,EITCHECK *chk)
         memset(&save_eevtitem, 0, sizeof(EEVTDitem));
 
         len = parseEITbody(ptr, &eitb);
-        if (eith.table_id == 0x4e) {
+        if (eith.table_id == 0x4e && chk != NULL ) {
             if (chk) {
                 if (eith.section_number < 2) {
                     if ((svtcur->cnev[eith.section_number].event_id  != (short)eitb.event_id) ||
@@ -524,7 +524,7 @@ int dumpEIT2(unsigned char *ptr, SVT_CONTROL *svttop,EITCHECK *chk)
                             }
                             if (eith.section_number == 1) { // 次のイベントとマッチ
                                 if (chk->starttime > 0) { //check
-                                    printf("%d\n",getStartTime(eitb.start_time)-chk->starttime);
+                                    printf("%ld\n",getStartTime(eitb.start_time)-chk->starttime);
                                     return EIT_CHECKOK;
                                 }
                             }
